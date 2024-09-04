@@ -10,17 +10,14 @@ class ContractListener {
     }
 
     async listenForEvents() {
-        console.log(`Listening for events on contract: ${this.contract.address}`);
 
-        // Get the current block number
         const blockNumber = await this.provider.getBlockNumber();
-        console.log(`Current block number: ${blockNumber}`);
-    
+        console.log(`Start listening for events on contract: ${this.contract.address} at block: ${blockNumber}`);
         // event StartEvent(uint256 requestId);
-        this.contract.on("StartEvent", async (requestId, rewardPool) => {
+        this.contract.on("StartEvent", async (requestId, _rewardPool) => {
             console.log(`Received start event for request ${requestId}`);
             this.requests[requestId] = { "clientsToSubmissions" : {}, "clientsToReputation" : {}};
-            this.requests[requestId]["rewardPool"] = rewardPool.toString();
+            this.requests[requestId]["rewardPool"] = _rewardPool.toString();
         });
     
         // event ComputationRequestTest(uint256 _requestId, string _modelAddress, string _testDataAddress, string _testLabelAddress, string _testDataHash, string _testLabelHash);
@@ -45,36 +42,69 @@ class ContractListener {
             console.log(`Received end event request for ${requestId}`);
             const requestBody = this.requests[requestId];
             console.log(`Request Body: ${JSON.stringify(requestBody)}`);
-            // const response = axios.post(backendURL, requestBody)
-            //     .then(response => {
-            //         console.log(`Received response: ${response.data}`);
-            //         return response.data;
-            //     })
-            //     .catch(error => {
-            //         console.error(`Error: ${error}`);
-            //         return error;
-            //     });
-    
+            // TODO: test this
+            const getResponse = async () => {
+                let res = {};
+                try {
+                    const axios = require('axios');
+                    const response = await axios.post(this.backendURL, requestBody)
+                        .then(response => {
+                            console.log(`Received response: ${response.data}`);
+                            raw = response.data;
+                            res["newModelAddress"] = raw.newModelAddress;
+                            res["clientIds"] = raw.clientIds;
+                            res["clientNewReputations"] = Object.values(raw.clientNewReputations);
+                            res["clientRewards"] = Object.values(raw.clientRewards);
+                        })
+                        .catch(error => {
+                            console.error(`Error: ${error}`);
+                            return error;
+                        });
+                } catch (error) {
+                    res["newModelAddress"] = "QmYEMkTVdYF7bBoJ28D2Lrqex1xozLZ5yHQ8pjDuJ18zQe";
+                    res["clientIds"] = [1, 2, 3, 4, 5];
+                    res["clientNewReputations"] = [100, 100, 100, 90, 80];
+                    res["clientRewards"] = ["100000000000000000", "100000000000000000","100000000000000000","100000000000000000","100000000000000000"];
+                }
+                return res;
+            }
+
             // Provide data back to the contract
             // ********** Dummy data start **********
+            // dummy_results = {
+            //     newModelAddress: "QmYEMkTVdYF7bBoJ28D2Lrqex1xozLZ5yHQ8pjDuJ18zQe",
+            //     clientIds: ["1", "2", "3", "4", "5"],
+            //     clientNewReputations: [100, 100, 100, 90, 80],
+            //     clientRewards: [100, 100, 100, 90, 80]
+            // }
             // {"newModelAddress": "QmYEMkTVdYF7bBoJ28D2Lrqex1xozLZ5yHQ8pjDuJ18zQe", "clientIds": ["1", "2", "3", "4", "5"], "clientNewReputations": [100, 100, 100, 90, 80], "clientRewards": [100, 100, 100, 90, 80]}
-            const newModelAddress = "QmYEMkTVdYF7bBoJ28D2Lrqex1xozLZ5yHQ8pjDuJ18zQe";
-            const clientIds = [1, 2, 3, 4, 5];
-            const clientNewReputations = [100, 100, 100, 90, 80];
-            const clientRewards = [100, 100, 100, 90, 80];
-            // **************************************
-            const tx = await this.contract.provideData(requestId, newModelAddress, clientIds, clientNewReputations, clientRewards);
-            await tx.wait();
-            console.log(`Provided data for request ${requestId}: ${newModelAddress}`);
+            // const newModelAddress = "QmYEMkTVdYF7bBoJ28D2Lrqex1xozLZ5yHQ8pjDuJ18zQe";
+            // const clientIds = ["1", "2", "3", "4", "5"];
+            // const clientNewReputations = [100, 100, 100, 90, 80];
+            // const clientRewards = [100, 100, 100, 90, 80];
+
+            const sendBack = async () => {
+                res = await getResponse();
+                const newModelAddress = res.newModelAddress;
+                const clientIds = res.clientIds;
+                const clientNewReputations = res.clientNewReputations;
+                const clientRewards = res.clientRewards.map(x => x.toString());
+                const tx = await this.contract.provideData(requestId, newModelAddress, clientIds, clientNewReputations, clientRewards);
+                await tx.wait();
+                console.log(`Provided data for request ${requestId}: ${newModelAddress}`);
+            }
+            
+            sendBack();
+
         });
 
-        this.contract.on("RewardPaid", async (clientId, reward) => {
-            console.log(`client ${clientId} received reward ${reward}`);
+        this.contract.on("RewardPaid", async (clientId, reward, roundOfTraining, clientAddress) => {
+            console.log(`client ${clientId} received reward ${reward} for ${roundOfTraining}`);
         });
 
         // emit DepositReturned(clientId, clientIdDeposit[clientId]);
-        this.contract.on("DepositReturned", async (clientId, deposit) => {
-            console.log(`client ${clientId} received deposit`);
+        this.contract.on("DepositReturned", async (clientId, deposit, roundOfTraining, clientAddress) => {
+            console.log(`client ${clientId} received deposit ${deposit} for ${roundOfTraining}`);
         });
     }
 }

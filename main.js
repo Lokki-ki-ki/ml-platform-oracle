@@ -13,5 +13,6 @@ const mlPlatformListener = new PlatformListener(
     "https://kkiwonderland.tech/api/evaluator",
     ORACLE_PRIVATE_KEY
 );
+mlPlatformListener.listenForEvents();
 
 

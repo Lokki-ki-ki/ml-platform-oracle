@@ -15,7 +15,7 @@ class PlatformListener {
     async getPastContracts() {
         const pastEvents = await this.contract.queryFilter("MlPlatformCreated");
         pastEvents.forEach(event => {
-            const contractAddress = event.args[0];
+            const contractAddress = event.args[1];
             const newinstance = new ContractListener(
                 contractAddress,
                 contractABI.abi,
@@ -31,14 +31,20 @@ class PlatformListener {
 
     async listenForEvents() {
     // event MlPlatformCreated(address indexed owner, address mlPlatformAddress, uint256 contractId, uint256 ddlTimestamp, uint256 depositRequired);
+
+    // event MlPlatformCreated(address indexed owner, address mlPlatformAddress, uint256 contractId, uint256 ddlTimestamp, uint256 depositRequired);
         this.contract.on("MlPlatformCreated", async (owner, mlPlatformAddress, contractId, ddlTimestamp, depositRequired) => {
             console.log(`Received event MlPlatformCreated for contract ${mlPlatformAddress}`);
+            if (this.contractInstances[mlPlatformAddress]) {
+                console.log(`Contract instance already exists for ${mlPlatformAddress}`);
+                return;
+            }
             const newinstance = new ContractListener(
                 mlPlatformAddress,
                 contractABI.abi,
-                provider,
+                this.provider,
                 "https://kkiwonderland.tech/api/evaluator",
-                ORACLE_PRIVATE_KEY
+                this.ORACLE_PRIVATE_KEY
             );
             newinstance.listenForEvents();
             this.contractInstances[mlPlatformAddress] = newinstance;
